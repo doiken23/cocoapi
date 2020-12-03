@@ -59,7 +59,7 @@ class Meteor:
         self.meteor_p.stdin.flush()
         return self.meteor_p.stdout.readline().decode().strip()
 
-    def _score(self, hypothesis_str, reference_list):
+    def score(self, hypothesis_str, reference_list):
         self.lock.acquire()
         # SCORE ||| reference 1 words ||| reference n words ||| hypothesis words
         hypothesis_str = hypothesis_str.replace('|||', '').replace('  ', ' ')
