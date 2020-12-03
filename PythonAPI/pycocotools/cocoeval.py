@@ -354,13 +354,14 @@ class COCOeval:
             p = self.params
         p.catIds = p.catIds if p.useCats == 1 else [-1]
         T = len(p.iouThrs)
+        C = len(p.capThrs)
         R = len(p.recThrs)
         K = len(p.catIds) if p.useCats else 1
         A = len(p.areaRng)
         M = len(p.maxDets)
-        precision = -np.ones((T, R, K, A, M))  # -1 for the precision of absent categories
-        recall = -np.ones((T, K, A, M))
-        scores = -np.ones((T, R, K, A, M))
+        precision = -np.ones((T, C, R, K, A, M))  # -1 for the precision of absent categories
+        recall = -np.ones((T, C, K, A, M))
+        scores = -np.ones((T, C, R, K, A, M))
 
         # create dictionary for future indexing
         _pe = self._paramsEval
@@ -393,8 +394,8 @@ class COCOeval:
                     inds = np.argsort(-dtScores, kind='mergesort')
                     dtScoresSorted = dtScores[inds]
 
-                    dtm = np.concatenate([e['dtMatches'][:, 0:maxDet] for e in E], axis=1)[:, inds]
-                    dtIg = np.concatenate([e['dtIgnore'][:, 0:maxDet] for e in E], axis=1)[:, inds]
+                    dtm = np.concatenate([e['dtMatches'][:, :, 0:maxDet] for e in E], axis=2)[:, :, inds]
+                    dtIg = np.concatenate([e['dtIgnore'][:, :, 0:maxDet] for e in E], axis=2)[:, :, inds]
                     gtIg = np.concatenate([e['gtIgnore'] for e in E])
                     npig = np.count_nonzero(gtIg == 0)
                     if npig == 0:
@@ -402,43 +403,45 @@ class COCOeval:
                     tps = np.logical_and(dtm, np.logical_not(dtIg))
                     fps = np.logical_and(np.logical_not(dtm), np.logical_not(dtIg))
 
-                    tp_sum = np.cumsum(tps, axis=1).astype(dtype=np.float)
-                    fp_sum = np.cumsum(fps, axis=1).astype(dtype=np.float)
-                    for t, (tp, fp) in enumerate(zip(tp_sum, fp_sum)):
-                        tp = np.array(tp)
-                        fp = np.array(fp)
-                        nd = len(tp)
-                        rc = tp / npig
-                        pr = tp / (fp + tp + np.spacing(1))
-                        q = np.zeros((R,))
-                        ss = np.zeros((R,))
+                    tp_sum = np.cumsum(tps, axis=2).astype(dtype=np.float)
+                    fp_sum = np.cumsum(fps, axis=2).astype(dtype=np.float)
+                    for t in range(T):
+                        for c in range(C):
+                            tp = np.array(tp_sum[t, c])
+                            fp = np.array(fp_sum[t, c])
 
-                        if nd:
-                            recall[t, k, a, m] = rc[-1]
-                        else:
-                            recall[t, k, a, m] = 0
+                            nd = len(tp)
+                            rc = tp / npig
+                            pr = tp / (fp + tp + np.spacing(1))
+                            q = np.zeros((R,))
+                            ss = np.zeros((R,))
 
-                        # numpy is slow without cython optimization for accessing elements
-                        # use python array gets significant speed improvement
-                        pr = pr.tolist()
-                        q = q.tolist()
+                            if nd:
+                                recall[t, c, k, a, m] = rc[-1]
+                            else:
+                                recall[t, c, k, a, m] = 0
 
-                        for i in range(nd - 1, 0, -1):
-                            if pr[i] > pr[i - 1]:
-                                pr[i - 1] = pr[i]
+                            # numpy is slow without cython optimization for accessing elements
+                            # use python array gets significant speed improvement
+                            pr = pr.tolist()
+                            q = q.tolist()
 
-                        inds = np.searchsorted(rc, p.recThrs, side='left')
-                        try:
-                            for ri, pi in enumerate(inds):
-                                q[ri] = pr[pi]
-                                ss[ri] = dtScoresSorted[pi]
-                        except BaseException:
-                            pass
-                        precision[t, :, k, a, m] = np.array(q)
-                        scores[t, :, k, a, m] = np.array(ss)
+                            for i in range(nd - 1, 0, -1):
+                                if pr[i] > pr[i - 1]:
+                                    pr[i - 1] = pr[i]
+
+                            inds = np.searchsorted(rc, p.recThrs, side='left')
+                            try:
+                                for ri, pi in enumerate(inds):
+                                    q[ri] = pr[pi]
+                                    ss[ri] = dtScoresSorted[pi]
+                            except BaseException:
+                                pass
+                            precision[t, c, :, k, a, m] = np.array(q)
+                            scores[t, c, :, k, a, m] = np.array(ss)
         self.eval = {
             'params': p,
-            'counts': [T, R, K, A, M],
+            'counts': [T, C, R, K, A, M],
             'date': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'precision': precision,
             'recall': recall,
