@@ -274,40 +274,56 @@ class COCOeval:
         ious = self.ious[imgId, catId][:, gtind] if len(self.ious[imgId, catId]) > 0 else self.ious[imgId, catId]
 
         T = len(p.iouThrs)
+        C = len(p.capThrs)
         G = len(gt)
         D = len(dt)
-        gtm = np.zeros((T, G))
-        dtm = np.zeros((T, D))
+        gtm = np.zeros((T, C, G))
+        dtm = np.zeros((T, C, D))
         gtIg = np.array([g['_ignore'] for g in gt])
-        dtIg = np.zeros((T, D))
+        dtIg = np.zeros((T, C, D))
         if not len(ious) == 0:
             for tind, t in enumerate(p.iouThrs):
-                for dind, d in enumerate(dt):
-                    # information about best match so far (m=-1 -> unmatched)
-                    iou = min([t, 1 - 1e-10])
-                    m = -1
-                    for gind, g in enumerate(gt):
-                        # if this gt already matched, and not a crowd, continue
-                        if gtm[tind, gind] > 0 and not iscrowd[gind]:
+                for cind, c in enumerate(p.capThrs):
+                    for dind, d in enumerate(dt):
+                        # information about best match so far (m=-1 -> unmatched)
+                        iou = min([t, 1 - 1e-10])
+                        m = -1
+                        for gind, g in enumerate(gt):
+                            # if this gt already matched, and not a crowd, continue
+                            if gtm[tind, cind, gind] > 0 and not iscrowd[gind]:
+                                continue
+
+                            # if dt matched to reg gt, and on ignore gt, stop
+                            if m > -1 and gtIg[m] == 0 and gtIg[gind] == 1:
+                                break
+
+                            # continue to next gt unless better match made
+                            if ious[dind, gind] < iou:
+                                continue
+
+                            # if match successful and best so far, store appropriately
+                            iou = ious[dind, gind]
+                            m = gind
+
+                        if m == -1:
                             continue
-                        # if dt matched to reg gt, and on ignore gt, stop
-                        if m > -1 and gtIg[m] == 0 and gtIg[gind] == 1:
-                            break
-                        # continue to next gt unless better match made
-                        if ious[dind, gind] < iou:
-                            continue
-                        # if match successful and best so far, store appropriately
-                        iou = ious[dind, gind]
-                        m = gind
-                    # if match made store id of match for both dt and gt
-                    if m == -1:
-                        continue
-                    dtIg[tind, dind] = gtIg[m]
-                    dtm[tind, dind] = gt[m]['id']
-                    gtm[tind, m] = d['id']
+
+                        # before storing id, check meteor score
+                        if c > 0:
+                            meteor = self.meteor.score(d['caption'], gt[m]['caption'])
+                            print(meteor)
+                            if meteor < c:
+                                continue
+
+                        # if match made store id of match for both dt and gt
+                        dtIg[tind, dind] = gtIg[m]
+                        dtm[tind, cind, dind] = gt[m]['id']
+                        gtm[tind, cind, m] = d['id']
+
         # set unmatched detections outside of area range to ignore
-        a = np.array([d['area'] < aRng[0] or d['area'] > aRng[1] for d in dt]).reshape((1, len(dt)))
-        dtIg = np.logical_or(dtIg, np.logical_and(dtm == 0, np.repeat(a, T, 0)))
+        a = np.array([d['area'] < aRng[0] or d['area'] > aRng[1] for d in dt]).reshape((1, 1, len(dt)))
+        dtIg = np.logical_or(dtIg, np.logical_and(dtm == 0, np.repeat(np.repeat(a, T, 0), C, 1)))
+
         # store results for given image and category
         return {
             'image_id': imgId,
@@ -367,7 +383,7 @@ class COCOeval:
                 Na = a0 * I0
                 for m, maxDet in enumerate(m_list):
                     E = [self.evalImgs[Nk + Na + i] for i in i_list]
-                    E = [e for e in E if not e is None]
+                    E = [e for e in E if e is not None]
                     if len(E) == 0:
                         continue
                     dtScores = np.concatenate([e['dtScores'][0:maxDet] for e in E])
@@ -521,6 +537,7 @@ class Params:
         # np.arange causes trouble.  the data point on arange is slightly larger than the true value
         self.iouThrs = np.linspace(.5, 0.95, int(np.round((0.95 - .5) / .05)) + 1, endpoint=True)
         self.recThrs = np.linspace(.0, 1.00, int(np.round((1.00 - .0) / .01)) + 1, endpoint=True)
+        self.capThrs = np.linspace(.0, 0.25, int(np.round((0.25 - .0) / .05)) + 1, endpoint=True)
         self.maxDets = [1, 10, 100]
         self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
         self.areaRngLbl = ['all', 'small', 'medium', 'large']
