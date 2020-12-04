@@ -455,43 +455,51 @@ class COCOeval:
         Compute and display summary metrics for evaluation results.
         Note this functin can *only* be applied on the default parameter setting
         '''
-        def _summarize(ap=1, iouThr=None, areaRng='all', maxDets=100):
+        def _summarize(ap=1, iouThr=None, capThr=None, areaRng='all', maxDets=100):
             p = self.params
-            iStr = ' {:<18} {} @[ IoU={:<9} | area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
+            iStr = ' {:<18} {} @[ IoU={:<9} | METEOR={:<9} | area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
             titleStr = 'Average Precision' if ap == 1 else 'Average Recall'
             typeStr = '(AP)' if ap == 1 else '(AR)'
             iouStr = '{:0.2f}:{:0.2f}'.format(p.iouThrs[0], p.iouThrs[-1]) \
                 if iouThr is None else '{:0.2f}'.format(iouThr)
+            capStr = '{:0.2f}:{:0.2f}'.format(p.capThrs[0], p.capThrs[-1]) \
+                if capThr is None else '{:0.2f}'.format(capThr)
 
             aind = [i for i, aRng in enumerate(p.areaRngLbl) if aRng == areaRng]
             mind = [i for i, mDet in enumerate(p.maxDets) if mDet == maxDets]
             if ap == 1:
-                # dimension of precision: [TxRxKxAxM]
+                # dimension of precision: [TxCxRxKxAxM]
                 s = self.eval['precision']
                 # IoU
                 if iouThr is not None:
                     t = np.where(iouThr == p.iouThrs)[0]
                     s = s[t]
-                s = s[:, :, :, aind, mind]
+                if capThr is not None:
+                    c = np.where(capThr == p.capThrs)[0]
+                    s = s[:, c]
+                s = s[:, :, :, :, aind, mind]
             else:
-                # dimension of recall: [TxKxAxM]
+                # dimension of recall: [TxCxKxAxM]
                 s = self.eval['recall']
                 if iouThr is not None:
                     t = np.where(iouThr == p.iouThrs)[0]
                     s = s[t]
-                s = s[:, :, aind, mind]
+                if capThr is not None:
+                    c = np.where(capThr == p.capThrs)[0]
+                    s = s[:, c]
+                s = s[:, :, :, aind, mind]
             if len(s[s > -1]) == 0:
                 mean_s = -1
             else:
                 mean_s = np.mean(s[s > -1])
-            print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
+            print(iStr.format(titleStr, typeStr, iouStr, capStr, areaRng, maxDets, mean_s))
             return mean_s
 
         def _summarizeDets():
             stats = np.zeros((12,))
             stats[0] = _summarize(1)
-            stats[1] = _summarize(1, iouThr=.5, maxDets=self.params.maxDets[2])
-            stats[2] = _summarize(1, iouThr=.75, maxDets=self.params.maxDets[2])
+            stats[1] = _summarize(1, iouThr=.5, capThr=.1, maxDets=self.params.maxDets[2])
+            stats[2] = _summarize(1, iouThr=.75, capThr=.25, maxDets=self.params.maxDets[2])
             stats[3] = _summarize(1, areaRng='small', maxDets=self.params.maxDets[2])
             stats[4] = _summarize(1, areaRng='medium', maxDets=self.params.maxDets[2])
             stats[5] = _summarize(1, areaRng='large', maxDets=self.params.maxDets[2])
