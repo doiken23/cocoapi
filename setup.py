@@ -6,17 +6,17 @@ from setuptools import Extension, setup
 
 ext_modules = [
     Extension(
-        'pycocotools._mask',
-        sources=['pycocotools/maskApi.c', 'pycocotools/_mask.pyx'],
-        include_dirs=[np.get_include()],
+        'densecapeval._mask',
+        sources=['densecapeval/maskApi.c', 'densecapeval/_mask.pyx'],
+        include_dirs=[np.get_include(), 'densecapeval'],
         extra_compile_args=['-Wno-cpp', '-Wno-unused-function', '-std=c99'],
     )
 ]
 
 setup(
-    name='pycocotools',
-    packages=['pycocotools'],
-    package_dir={'pycocotools': 'pycocotools'},
+    name='densecapeval',
+    packages=['densecapeval'],
+    package_dir={'densecapeval': 'densecapeval'},
     install_requires=[
         'setuptools>=18.0',
         'cython>=0.27.3',
