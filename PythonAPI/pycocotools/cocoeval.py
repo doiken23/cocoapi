@@ -4,7 +4,6 @@ import copy
 import datetime
 import time
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 
@@ -31,8 +30,6 @@ class COCOeval:
     #  recThrs    - [0:.01:1] R=101 recall thresholds for evaluation
     #  areaRng    - [...] A=4 object area ranges for evaluation
     #  maxDets    - [1 10 100] M=3 thresholds on max detections per image
-    #  iouType    - ['segm'] set iouType to 'segm', 'bbox' or 'keypoints'
-    #  iouType replaced the now DEPRECATED useSegm parameter.
     #  useCats    - [1] if true use category labels for evaluation
     # Note: if useCats=0 category labels are ignored as in proposal scoring.
     # Note: multiple areaRngs [Ax2] and maxDets [Mx1] can be specified.
@@ -62,22 +59,20 @@ class COCOeval:
     # Data, paper, and tutorials available at:  http://mscoco.org/
     # Code written by Piotr Dollar and Tsung-Yi Lin, 2015.
     # Licensed under the Simplified BSD License [see coco/license.txt]
-    def __init__(self, cocoGt=None, cocoDt=None, iouType='segm'):
+    def __init__(self, cocoGt=None, cocoDt=None):
         '''
         Initialize CocoEval using coco APIs for gt and dt
         :param cocoGt: coco object with ground truth annotations
         :param cocoDt: coco object with detection results
         :return: None
         '''
-        if not iouType:
-            print('iouType not specified. use default iouType segm')
         self.cocoGt = cocoGt              # ground truth COCO API
         self.cocoDt = cocoDt              # detections COCO API
         self.evalImgs = defaultdict(list)   # per-image per-category evaluation results [KxAxI] elements
         self.eval = {}                  # accumulated evaluation results
         self._gts = defaultdict(list)       # gt for evaluation
         self._dts = defaultdict(list)       # dt for evaluation
-        self.params = Params(iouType=iouType)  # parameters
+        self.params = Params()  # parameters
         self._paramsEval = {}               # parameters for evaluation
         self.stats = []                     # result summarization
         self.ious = {}                      # ious between all gts and dts
@@ -105,16 +100,10 @@ class COCOeval:
             gts = self.cocoGt.loadAnns(self.cocoGt.getAnnIds(imgIds=p.imgIds))
             dts = self.cocoDt.loadAnns(self.cocoDt.getAnnIds(imgIds=p.imgIds))
 
-        # convert ground truth to mask if iouType == 'segm'
-        if p.iouType == 'segm':
-            _toMask(gts, self.cocoGt)
-            _toMask(dts, self.cocoDt)
         # set ignore flag
         for gt in gts:
             gt['ignore'] = gt['ignore'] if 'ignore' in gt else 0
             gt['ignore'] = 'iscrowd' in gt and gt['iscrowd']
-            if p.iouType == 'keypoints':
-                gt['ignore'] = (gt['num_keypoints'] == 0) or gt['ignore']
         self._gts = defaultdict(list)       # gt for evaluation
         self._dts = defaultdict(list)       # dt for evaluation
         for gt in gts:
@@ -133,10 +122,6 @@ class COCOeval:
         print('Running per image evaluation...')
         p = self.params
         # add backward compatibility if useSegm is specified in params
-        if p.useSegm is not None:
-            p.iouType = 'segm' if p.useSegm == 1 else 'bbox'
-            print('useSegm (deprecated) is not None. Running {} evaluation'.format(p.iouType))
-        print('Evaluate annotation type *{}*'.format(p.iouType))
         p.imgIds = list(np.unique(p.imgIds))
         if p.useCats:
             p.catIds = list(np.unique(p.catIds))
@@ -147,10 +132,7 @@ class COCOeval:
         # loop through images, area range, max detection number
         catIds = p.catIds if p.useCats else [-1]
 
-        if p.iouType == 'segm' or p.iouType == 'bbox':
-            computeIoU = self.computeIoU
-        elif p.iouType == 'keypoints':
-            computeIoU = self.computeOks
+        computeIoU = self.computeIoU
         self.ious = {(imgId, catId): computeIoU(imgId, catId)
                      for imgId in p.imgIds
                      for catId in catIds}
@@ -181,14 +163,8 @@ class COCOeval:
         if len(dt) > p.maxDets[-1]:
             dt = dt[0:p.maxDets[-1]]
 
-        if p.iouType == 'segm':
-            g = [g['segmentation'] for g in gt]
-            d = [d['segmentation'] for d in dt]
-        elif p.iouType == 'bbox':
-            g = [g['bbox'] for g in gt]
-            d = [d['bbox'] for d in dt]
-        else:
-            raise Exception('unknown iouType for iou computation')
+        g = [g['bbox'] for g in gt]
+        d = [d['bbox'] for d in dt]
 
         # compute iou between each dt and gt region
         iscrowd = [int(o['iscrowd']) for o in gt]
@@ -511,27 +487,9 @@ class COCOeval:
             stats[11] = _summarize(0, areaRng='large', maxDets=self.params.maxDets[2])
             return stats
 
-        def _summarizeKps():
-            stats = np.zeros((10,))
-            stats[0] = _summarize(1, maxDets=20)
-            stats[1] = _summarize(1, maxDets=20, iouThr=.5)
-            stats[2] = _summarize(1, maxDets=20, iouThr=.75)
-            stats[3] = _summarize(1, maxDets=20, areaRng='medium')
-            stats[4] = _summarize(1, maxDets=20, areaRng='large')
-            stats[5] = _summarize(0, maxDets=20)
-            stats[6] = _summarize(0, maxDets=20, iouThr=.5)
-            stats[7] = _summarize(0, maxDets=20, iouThr=.75)
-            stats[8] = _summarize(0, maxDets=20, areaRng='medium')
-            stats[9] = _summarize(0, maxDets=20, areaRng='large')
-            return stats
         if not self.eval:
             raise Exception('Please run accumulate() first')
-        iouType = self.params.iouType
-        if iouType == 'segm' or iouType == 'bbox':
-            summarize = _summarizeDets
-        elif iouType == 'keypoints':
-            summarize = _summarizeKps
-        self.stats = summarize()
+        self.stats = _summarizeDets()
 
     def __str__(self):
         self.summarize()
@@ -541,8 +499,7 @@ class Params:
     '''
     Params for coco evaluation api
     '''
-
-    def setDetParams(self):
+    def __init__(self):
         self.imgIds = []
         self.catIds = []
         # np.arange causes trouble.  the data point on arange is slightly larger than the true value
@@ -553,27 +510,3 @@ class Params:
         self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
         self.areaRngLbl = ['all', 'small', 'medium', 'large']
         self.useCats = 1
-
-    def setKpParams(self):
-        self.imgIds = []
-        self.catIds = []
-        # np.arange causes trouble.  the data point on arange is slightly larger than the true value
-        self.iouThrs = np.linspace(.5, 0.95, int(np.round((0.95 - .5) / .05)) + 1, endpoint=True)
-        self.recThrs = np.linspace(.0, 1.00, int(np.round((1.00 - .0) / .01)) + 1, endpoint=True)
-        self.maxDets = [20]
-        self.areaRng = [[0 ** 2, 1e5 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
-        self.areaRngLbl = ['all', 'medium', 'large']
-        self.useCats = 1
-        self.kpt_oks_sigmas = np.array(
-            [.26, .25, .25, .35, .35, .79, .79, .72, .72, .62, .62, 1.07, 1.07, .87, .87, .89, .89]) / 10.0
-
-    def __init__(self, iouType='segm'):
-        if iouType == 'segm' or iouType == 'bbox':
-            self.setDetParams()
-        elif iouType == 'keypoints':
-            self.setKpParams()
-        else:
-            raise Exception('iouType not supported')
-        self.iouType = iouType
-        # useSegm is deprecated
-        self.useSegm = None
