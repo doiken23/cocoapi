@@ -287,7 +287,6 @@ class COCOeval:
                         # before storing id, check meteor score
                         if c > 0:
                             meteor = self.meteor.score(d['caption'], gt[m]['caption'])
-                            print(meteor)
                             if meteor < c:
                                 continue
 
