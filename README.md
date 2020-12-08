@@ -31,7 +31,7 @@ gt_path = "PATH/TO/GT.json"  # path of ground truch (.json)
 dt_path = "PATH/TO/PRED.json"  # path of prediction result (.json)
 
 coco_gt = COCO(gt_path)
-coco_dt = COCO.loadRes(dt_path)
+coco_dt = coco_gt.loadRes(dt_path)
 coco_eval = COCOeval(cocoGt=coco_gt, cocoDt=coco_dt)
 
 coco_eval.evaluate()  # compute IoU score and METEOR score of each pair of bbox and caption per image
@@ -102,7 +102,7 @@ Average Recall     (AR) @[ IoU=0.30:0.70 | METEOR=0.00:0.25 | area= large | maxD
         "category_id": int,     # category is of bbox
         "bbox": [x1, y1, w, h], # coordinates of detected bbox
         "score": float,         # confidence score of bbox
-        "caption": st           # predicted caption
+        "caption": str          # predicted caption
     }
     ...
 ]
