@@ -292,7 +292,7 @@ class COCOeval:
                                 continue
 
                         # if match made store id of match for both dt and gt
-                        dtIg[tind, dind] = gtIg[m]
+                        dtIg[tind, cind, dind] = gtIg[m]
                         dtm[tind, cind, dind] = gt[m]['id']
                         gtm[tind, cind, m] = d['id']
 
