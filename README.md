@@ -18,7 +18,7 @@ To evaluate the performance of a dense captioning model, this tool calculates th
 ## Installation
 
 ```
-pip install .
+pip install -e .
 ```
 
 ## Examples
