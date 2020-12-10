@@ -1,0 +1,31 @@
+{
+    "annotations": [
+        {
+            "id"            : 1,
+            "image_id"      : 1,
+            "category_id"   : 1,
+            "area"          : 2500,
+            "bbox"          : [5, 95, 50, 50],
+            "caption"       : [
+                "The dog is one the road"],
+            "iscrowd"       : 0
+        }
+    ],
+
+    "images": [
+        {
+            "id"            : 1,
+            "width"         : 1080,
+            "height"        : 1080,
+            "file_name"     : "hogehoge.jpg"
+        }
+    ],
+
+    "categories": [
+        {
+            "id"            : 1,
+            "name"          : "dog",
+            "supercategory" : "animal"
+        }
+    ]
+}

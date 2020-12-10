@@ -1,0 +1,10 @@
+[
+    {
+        "image_id"      : 1,
+        "category_id"   : 1,
+        "bbox"          : [0, 100, 50, 50],
+        "score"         : 0.9,
+        "caption"       : "The dog is on the street"
+    }
+]
+
