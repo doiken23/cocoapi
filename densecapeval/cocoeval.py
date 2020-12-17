@@ -447,20 +447,20 @@ class COCOeval:
                 s = self.eval['precision']
                 # IoU
                 if iouThr is not None:
-                    t = np.where(iouThr == p.iouThrs)[0]
+                    t = np.where(np.isclose(iouThr, p.iouThrs))[0]
                     s = s[t]
                 if capThr is not None:
-                    c = np.where(capThr == p.capThrs)[0]
+                    c = np.where(np.isclose(capThr, p.capThrs))[0]
                     s = s[:, c]
                 s = s[:, :, :, :, aind, mind]
             else:
                 # dimension of recall: [TxCxKxAxM]
                 s = self.eval['recall']
                 if iouThr is not None:
-                    t = np.where(iouThr == p.iouThrs)[0]
+                    t = np.where(np.isclose(iouThr, p.iouThrs))[0]
                     s = s[t]
                 if capThr is not None:
-                    c = np.where(capThr == p.capThrs)[0]
+                    c = np.where(np.isclose(capThr, p.capThrs))[0]
                     s = s[:, c]
                 s = s[:, :, :, aind, mind]
             if len(s[s > -1]) == 0:
